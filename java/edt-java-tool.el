@@ -1,6 +1,8 @@
 (defvar edt-java-tool-mode-map (make-sparse-keymap) "edt java tool key map")
-(define-key edt-java-tool-mode-map [return] 'java-dump)
+(define-key edt-java-tool-mode-map "d" 'java-dump)
 (define-key edt-java-tool-mode-map "k" 'java-kill)
+
+(defvar edt-java-tool-default-directory nil)
 
 (defun java-pid ()
   (interactive)
@@ -10,7 +12,10 @@
   (insert (shell-command-to-string "jps -ml"))
   (progn 
     (goto-char 0)
-    (loop for i from 1 to (count-lines (point-min) (point-max)) do
+;   (loop for i from 1 to (count-lines (point-min) (point-max)) do
+    (let ((i 0))
+      (while (< i (count-lines (point-min) (point-max)))
+	  (incf i)
 	  (setq line-str (buffer-substring-no-properties (point-at-bol) (point-at-eol)))
 	  (setq ps-line (string-match " " line-str))
 	  (setq color-fn '(foreground-color . "#729FCF"))
@@ -21,7 +26,7 @@
 	  (if (numberp (string-match "org.jboss.as.server" line-str)) (setq color-fn '(foreground-color . "red")))
 	  (if (numberp (string-match "org.jboss.as.cli" line-str)) (setq color-fn '(foreground-color . "#34E2E2")))
 	  (put-text-property (point) (+ (point) ps-line) 'face color-fn)
-	  (forward-line 1)))
+	  (forward-line 1))))
   (setq buffer-read-only t)
   (goto-char (point-min))
   (use-local-map edt-java-tool-mode-map)
@@ -59,7 +64,7 @@
 )
 
 (defun java-stack-jump (src_dir)
-  (interactive "DInput source code directory : ")
+  (interactive (list (read-directory-name "Input source code directory : " edt-java-tool-default-directory)))
   (java-stack-jump-execute src_dir (buffer-substring-no-properties (point-at-bol) (point-at-eol)))
 )
 
@@ -82,12 +87,14 @@
 	)
       )
     )
-  
-  (setq java_file (concat (car (cdr some-list)) ".java"))
-  
-  (setq java_file_full (concat (mapconcat 'identity (reverse (cdr some-list)) "/") ".java"))
+
+  (setq pre_java_file (car (cdr some-list)))
+  (let ((n1 (string-match "\\$" pre_java_file)))
+    (if n1 (setq pre_java_file (substring pre_java_file 0 n1))))
+  (setq java_file (concat pre_java_file ".java"))
+  (setq java_file_full (concat (mapconcat 'identity (reverse (nthcdr 2 some-list)) "/") "/" java_file))
   (setq src_file_path (replace-regexp-in-string "\n+$" "" (shell-command-to-string (concat "find " src_dir " -name " java_file " | grep " java_file_full " | head -n1"))))
-  (if (eq (string-match java_file_full src_file_path) nil) (message (concat "Thre is no the java file in " src_dir))
+  (if (eq (string-match java_file_full src_file_path) nil) (message (concat "Could not find the " java_file " under the " src_dir))
     (find-file src_file_path)
     (setq buffer-read-only t)
     (linum-mode t)
